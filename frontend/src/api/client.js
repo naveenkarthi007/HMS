@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-export const API_BASE = '/api/v1';
+export const API_BASE = '/hostel/api/v1';
 const SESSION_KEY = 'hms.session';
 const REFRESH_MARGIN_MS = 30 * 1000;
 

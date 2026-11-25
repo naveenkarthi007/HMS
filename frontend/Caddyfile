@@ -1,0 +1,56 @@
+{
+    email {$ACME_EMAIL:admin@example.com}
+}
+
+:80, :5173 {
+    encode gzip zstd
+
+    # API reverse proxy
+    handle /hostel/api/* {
+        reverse_proxy backend:5000
+    }
+    handle /api/* {
+        reverse_proxy backend:5000
+    }
+
+    # Redirect /hostel (exact) to /hostel/
+    @hostel_exact path /hostel
+    redir @hostel_exact /hostel/ 308
+
+    # Serve React SPA under /hostel/*
+    handle_path /hostel/* {
+        root * /srv
+        try_files {path} /index.html
+        file_server
+    }
+
+    # Redirect root / to /hostel/
+    handle {
+        redir * /hostel/ 308
+    }
+}
+
+{$DOMAIN:localhost} {
+    encode gzip zstd
+    tls internal
+
+    handle /hostel/api/* {
+        reverse_proxy backend:5000
+    }
+    handle /api/* {
+        reverse_proxy backend:5000
+    }
+
+    @hostel_exact path /hostel
+    redir @hostel_exact /hostel/ 308
+
+    handle_path /hostel/* {
+        root * /srv
+        try_files {path} /index.html
+        file_server
+    }
+
+    handle {
+        redir * /hostel/ 308
+    }
+}

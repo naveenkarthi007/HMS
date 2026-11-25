@@ -31,11 +31,32 @@ const app = express();
 
 app.disable('x-powered-by');
 app.set('etag', false);
+app.set('trust proxy', 1);
 
 app.use(helmet());
+const allowedOrigins = [
+  env.CORS_ORIGIN,
+  'https://naveenkarthim.site',
+  'https://jenkins.naveenkarthim.site',
+  'http://localhost',
+  'https://localhost',
+  'http://127.0.0.1',
+].filter(Boolean);
+
 app.use(
   cors({
-    origin: env.CORS_ORIGIN,
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (
+        allowedOrigins.includes(origin) ||
+        origin.endsWith('.naveenkarthim.site') ||
+        origin.startsWith('http://localhost:') ||
+        origin.startsWith('https://localhost:')
+      ) {
+        return callback(null, origin);
+      }
+      return callback(null, false);
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   }),
@@ -80,7 +101,7 @@ api.use('/mess', messRoutes);
 api.use('/applications', applicationRoutes);
 api.use('/outings', outingRoutes);
 
-app.use('/api/v1', apiLimiter, api);
+app.use(['/api/v1', '/hostel/api/v1'], apiLimiter, api);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

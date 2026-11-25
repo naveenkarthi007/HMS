@@ -1,0 +1,98 @@
+services:
+  # MySQL 8.0 Database
+  db:
+    image: mysql:8.0
+    container_name: hms-db
+    restart: unless-stopped
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_change_this_secret}
+      MYSQL_DATABASE: ${DB_NAME:-hostel_management}
+      MYSQL_USER: ${DB_USER:-hms_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-db_change_this_secret}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u$$MYSQL_USER -p$$MYSQL_PASSWORD"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - hms-network
+
+  # Node.js / Express API Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: hms-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      CORS_ORIGIN: ${CORS_ORIGIN:-https://${DOMAIN}}
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: ${DB_USER:-hms_user}
+      DB_PASSWORD: ${DB_PASSWORD:-db_change_this_secret}
+      DB_NAME: ${DB_NAME:-hostel_management}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      ACCESS_TOKEN_TTL_MINUTES: ${ACCESS_TOKEN_TTL_MINUTES:-15}
+      REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-7}
+      BCRYPT_ROUNDS: ${BCRYPT_ROUNDS:-12}
+      SEED_DB: ${SEED_DB:-false}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - hms-network
+
+  # Web Server (React Static Assets + Caddy)
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: hms-web
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+      - "5173:5173"
+    environment:
+      DOMAIN: ${DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+    networks:
+      hms-network:
+        aliases:
+          - web
+          - jovial_bhabha
+
+  # Cloudflare Tunnel (shares network with web so localhost:5173 & localhost:80 hit Caddy directly)
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: hms-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN:-eyJhIjoiYmU0NmJkNDdlMDhlYzJhOWUyYTIwMWRhMTZjM2JiNDIiLCJ0IjoiNmQwZjFiODUtNzBlNS00ZTkyLWIzMmYtOGYyMjA2YmQ2NDU4IiwicyI6Ik9UZzRaVFEyTjJFdE16VTJPUzAwWWpkakxUa3lNakl0T0RNell6VTVaVFptWkdOaSJ9}
+    depends_on:
+      - web
+    network_mode: "service:web"
+
+volumes:
+  mysql_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  hms-network:
+    driver: bridge

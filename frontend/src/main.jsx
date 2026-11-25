@@ -42,7 +42,7 @@ const routerFuture = { v7_startTransition: true, v7_relativeSplatPath: true };
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <BrowserRouter future={routerFuture}>
+    <BrowserRouter future={routerFuture} basename="/hostel">
       <QueryClientProvider client={queryClient}>
         <PlatformViewProvider>
           <AuthProvider>
